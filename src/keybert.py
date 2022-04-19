@@ -163,11 +163,11 @@ def main(cfg):
         result = []
         for doc in tqdm(df.token):
             keywords = kw_model.extract_keywords(doc,
-                                                keyphrase_ngram_range=eval(cfg.MODEL.range),
-                                                stop_words='english',
-                                                use_maxsum=True,
-                                                nr_candidates=cfg.MODEL.nr_candidates,
-                                                top_n=cfg.MODEL.top_n)
+                                                keyphrase_ngram_range=eval(cfg.MODEL.range),    # 단어 추출을 위해 unigram - unigram
+                                                stop_words='english',                           # 영어 불용어 처리
+                                                use_maxsum=True,                                # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
+                                                nr_candidates=cfg.MODEL.nr_candidates,          # 후보 갯수
+                                                top_n=cfg.MODEL.top_n)                          # 키워드 추출 갯수
 
             keywords.sort(key=lambda x: x[1], reverse=True)
             keywords = [w.upper() for w, t in keywords]
