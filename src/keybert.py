@@ -9,7 +9,6 @@ import pymysql
 import swifter
 from konlpy.tag import Mecab
 from sqlalchemy import create_engine
-from tqdm import tqdm
 
 from keybert import KeyBERT
 
@@ -87,6 +86,13 @@ def processing(content):
     return result
 
 
+# batch
+def batch(iterable, batch_size):
+  l = len(iterable)
+  for ndx in range(0, l, batch_size):
+    yield iterable[ndx:min(ndx + batch_size, l)]
+
+
 # data load
 def data_load(**kwargs):
     try:
@@ -160,29 +166,32 @@ def main(cfg):
         # keybert
         kw_model = KeyBERT(cfg.MODEL.model)
         
+        # batch 단위 처리
         result = []
-        for doc in tqdm(df.token):
-            keywords = kw_model.extract_keywords(doc,
-                                                keyphrase_ngram_range=eval(cfg.MODEL.range),    # 단어 추출을 위해 unigram - unigram
-                                                stop_words='english',                           # 영어 불용어 처리
-                                                use_maxsum=True,                                # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
-                                                nr_candidates=cfg.MODEL.nr_candidates,          # 후보 갯수
-                                                top_n=cfg.MODEL.top_n)                          # 키워드 추출 갯수
+        for batch_df in batch(df, cfg.DIR.batch_size):
+            keywords = kw_model.extract_keywords(batch_df.token.tolist(),
+                                                keyphrase_ngram_range=eval(cfg.MODEL.range),        # 단어 추출을 위해 unigram - unigram
+                                                stop_words='english',                               # 영어 불용어 처리
+                                                use_maxsum=True,                                    # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
+                                                nr_candidates=cfg.MODEL.nr_candidates,              # 후보 갯수
+                                                top_n=cfg.MODEL.top_n)                              # 키워드 추출 갯수
 
-            keywords.sort(key=lambda x: x[1], reverse=True)
-            keywords = [w.upper() for w, t in keywords]
-            result.append(', '.join(keywords))
+            for keyword in keywords:
+                keyword.sort(key=lambda x: x[1], reverse=True)
+                keyword = [w.upper() for w, t in keyword]
+                result.append(', '.join(keyword))
 
+        logging.info(len(result))
         df['keywords'] = result
 
         logging.info(f"processed df's length : {len(df)}")
         logging.info(df.head())
     
+
         # dataframe to update query
         param = []
-        for i in range(len(df)):
-            temp = (str(df["keywords"][i]), df["id"][i])
-            param.append(temp)
+        for k, i in zip(df["keywords"], df["id"]):
+            param.append((k, i))
         
         logging.info(f"param : {param}")
         update(param, **cfg.DATABASE)
