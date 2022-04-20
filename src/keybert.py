@@ -46,6 +46,7 @@ def processing(content):
         .replace("appeared first on 모비 인사이드 MOBIINSIDE", "")
         .replace("The post", "")
     )
+    result = re.sub("http[s]?://(?:[a-zA-Z]|[0-9]|[$\-@\.&+:/?=]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", "", result)
     result = re.sub(r"[a-zA-Z가-힣]+뉴스", "", result)
     result = re.sub(r"[a-zA-Z가-힣]+ 뉴스", "", result)
     result = re.sub(r"[a-zA-Z가-힣]+newskr", "", result)
@@ -193,7 +194,6 @@ def main(cfg):
         for k, i in zip(df["keywords"], df["id"]):
             param.append((k, i))
         
-        logging.info(f"param : {param}")
         update(param, **cfg.DATABASE)
 
 
