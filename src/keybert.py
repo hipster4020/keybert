@@ -157,8 +157,9 @@ def main(cfg):
         logging.info("processing start")
         df['content'] = df.title_content.swifter.apply(processing)
         
-        # 50 미만 제거
-        logging.info("remove len 50 less")
+        # 50 미만 분리
+        logging.info("split len 50 less")
+        df2 = df[df.content.swifter.apply(lambda x: len(x) < 50)]
         df = df[df.content.swifter.apply(lambda x: len(x) >= 50)]
 
         # 명사 추출
@@ -172,6 +173,9 @@ def main(cfg):
         # batch 단위 처리
         result = []
         for batch_df in batch(df, cfg.DIR.batch_size):
+            temp = batch_df.token.tolist()
+            print(f"batch_df.token.tolist : {temp}")
+            
             keywords = kw_model.extract_keywords(batch_df.token.tolist(),
                 keyphrase_ngram_range=eval(cfg.MODEL.range),        # 단어 추출을 위해 unigram - unigram
                 stop_words='english',                               # 영어 불용어 처리
@@ -179,16 +183,24 @@ def main(cfg):
                 nr_candidates=cfg.MODEL.nr_candidates,              # 후보 갯수
                 top_n=cfg.MODEL.top_n)                              # 키워드 추출 갯수
             
+            print(f"keywords : {keywords}")
+            
             for keyword in keywords:
                 if keyword[0] == "None Found":
-                    keyword = [('NONE KEYWORD', '')]
+                    keyword = [(None, '')]
+
                 keyword.sort(key=lambda x: x[1], reverse=True)
-                keyword = [w.upper() for w, t in keyword]
+                keyword = [w.upper() for w, t in keyword if w is not None]
                 result.append(', '.join(keyword))
 
         logging.info(len(result))
+        
+        # data merge
         df['keywords'] = result
-
+        df2['keywords'] = None
+        
+        df = pd.concat([df,df2])
+        
         logging.info(f"processed df's length : {len(df)}")
         logging.info(df.head())
     
