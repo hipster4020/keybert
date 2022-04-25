@@ -19,7 +19,7 @@ m = Mecab()
 carLogFormatter = logging.Formatter("%(asctime)s,%(message)s")
 
 carLogHandler = handlers.TimedRotatingFileHandler(
-    filename="../log/keybert.log",
+    filename="/workspace/news_keyword/log/keybert.log",
     when="midnight",
     interval=1,
     encoding="utf-8",
@@ -38,6 +38,8 @@ def processing(content):
         str(content).replace("뉴스코리아", "")
         .replace("및", "")
         .replace("Copyright", "")
+        .replace("copyright", "")
+        .replace("COPYRIGHT", "")
         .replace("저작권자", "")
         .replace("ZDNET A RED VENTURES COMPANY", "")
         .replace("appeared first on 벤처스퀘어", "")
@@ -109,7 +111,7 @@ def data_load(**kwargs):
         engine = create_engine(engine_conn)
 
         df = pd.read_sql(
-            kwargs.get("squery"),
+            kwargs.get("bquery"),
             engine,
         )
         df['title_content'] = df.title + " " + df.content
@@ -172,12 +174,14 @@ def main(cfg):
         for batch_df in batch(df, cfg.DIR.batch_size):
             keywords = kw_model.extract_keywords(batch_df.token.tolist(),
                                                 keyphrase_ngram_range=eval(cfg.MODEL.range),        # 단어 추출을 위해 unigram - unigram
-                                                stop_words='english',                               # 영어 불용어 처리
-                                                use_maxsum=True,                                    # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
-                                                nr_candidates=cfg.MODEL.nr_candidates,              # 후보 갯수
-                                                top_n=cfg.MODEL.top_n)                              # 키워드 추출 갯수
-
+                stop_words='english',                               # 영어 불용어 처리
+                use_maxsum=True,                                    # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
+                nr_candidates=cfg.MODEL.nr_candidates,              # 후보 갯수
+                top_n=cfg.MODEL.top_n)                              # 키워드 추출 갯수
+            
             for keyword in keywords:
+                if keyword[0] == "None Found":
+                    keyword = [('NONE KEYWORD', '')]
                 keyword.sort(key=lambda x: x[1], reverse=True)
                 keyword = [w.upper() for w, t in keyword]
                 result.append(', '.join(keyword))
@@ -193,7 +197,7 @@ def main(cfg):
         param = []
         for k, i in zip(df["keywords"], df["id"]):
             param.append((k, i))
-        
+
         update(param, **cfg.DATABASE)
 
 
