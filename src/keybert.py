@@ -7,10 +7,9 @@ import hydra
 import pandas as pd
 import pymysql
 import swifter
+from keybert import KeyBERT
 from konlpy.tag import Mecab
 from sqlalchemy import create_engine
-
-from keybert import KeyBERT
 
 m = Mecab()
 
@@ -19,7 +18,7 @@ m = Mecab()
 carLogFormatter = logging.Formatter("%(asctime)s,%(message)s")
 
 carLogHandler = handlers.TimedRotatingFileHandler(
-    filename="/workspace/news_keyword/log/keybert.log",
+    filename="../log/keybert.log",
     when="midnight",
     interval=1,
     encoding="utf-8",
@@ -111,7 +110,7 @@ def data_load(**kwargs):
         engine = create_engine(engine_conn)
 
         df = pd.read_sql(
-            kwargs.get("bquery"),
+            kwargs.get("squery"),
             engine,
         )
         df['title_content'] = df.title + " " + df.content
@@ -173,34 +172,28 @@ def main(cfg):
         # batch 단위 처리
         result = []
         for batch_df in batch(df, cfg.DIR.batch_size):
-            temp = batch_df.token.tolist()
-            print(f"batch_df.token.tolist : {temp}")
-            
+
             keywords = kw_model.extract_keywords(batch_df.token.tolist(),
                 keyphrase_ngram_range=eval(cfg.MODEL.range),        # 단어 추출을 위해 unigram - unigram
                 stop_words='english',                               # 영어 불용어 처리
                 use_maxsum=True,                                    # Max Sum Similarity(상위 top n개 추출 중 가장 덜 유사한 키워들 조합 계산)
                 nr_candidates=cfg.MODEL.nr_candidates,              # 후보 갯수
-                top_n=cfg.MODEL.top_n)                              # 키워드 추출 갯수
-            
-            print(f"keywords : {keywords}")
-            
+            )
+
             for keyword in keywords:
                 if keyword[0] == "None Found":
                     keyword = [(None, '')]
 
                 keyword.sort(key=lambda x: x[1], reverse=True)
-                keyword = [w.upper() for w, t in keyword if w is not None]
+                keyword = [w.upper() for w, t in keyword]
                 result.append(', '.join(keyword))
-
-        logging.info(len(result))
         
         # data merge
         df['keywords'] = result
         df2['keywords'] = None
         
         df = pd.concat([df,df2])
-        
+
         logging.info(f"processed df's length : {len(df)}")
         logging.info(df.head())
     
@@ -209,7 +202,7 @@ def main(cfg):
         param = []
         for k, i in zip(df["keywords"], df["id"]):
             param.append((k, i))
-
+        
         update(param, **cfg.DATABASE)
 
 
